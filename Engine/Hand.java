@@ -1,11 +1,16 @@
 package Engine;
 
-import javafx.beans.property.SimpleIntegerProperty;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.util.ArrayList;
 
-public class Hand {
+import javafx.beans.property.SimpleIntegerProperty;
+
+public class Hand implements Serializable {
     private ArrayList<Card> cards;
-    private SimpleIntegerProperty value = new SimpleIntegerProperty(0);
+    private WriteableIntegerProperty value = new WriteableIntegerProperty(0);
 
     private int aces = 0;
 
@@ -40,5 +45,22 @@ public class Hand {
 
     public SimpleIntegerProperty valueProperty() {
         return value;
+    }
+}
+
+class WriteableIntegerProperty extends SimpleIntegerProperty implements Serializable {
+
+    public WriteableIntegerProperty(int i) {
+        super(i);
+    }
+
+    private void writeObject (ObjectOutputStream s) throws IOException, IOException {
+        s.defaultWriteObject();
+        s.writeObject(get());
+    }
+
+    private void readObject (ObjectInputStream s) throws IOException, ClassNotFoundException {
+        s.defaultReadObject();
+        set((int) s.readObject());
     }
 }
