@@ -1,0 +1,12 @@
+.connect {
+  -fx-font-size: 12px;
+  -fx-color: #3e8e54;
+  -fx-text-align: center;
+  -fx-text-fill: white;
+  -fx-cursor: pointer;
+  -fx-background: #219d55;
+}
+.connect:hover {
+  -fx-top: 1px;
+  -fx-color: #4bd760;
+}

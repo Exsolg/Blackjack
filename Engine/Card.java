@@ -1,6 +1,8 @@
 package Engine;
 
-public class Card {
+import java.io.Serializable;
+
+public class Card implements Serializable {
     public final Suit suit;
     public final Rank rank;
     public final int value;

@@ -28,9 +28,7 @@ public class Hand implements Serializable {
         if (value.get() + card.value > 21 && aces > 0) {
             value.set(value.get() + card.value - 10);
             aces = 0;
-        }
-
-        else {
+        } else {
             value.set(value.get() + card.value);
         }
     }
@@ -41,10 +39,19 @@ public class Hand implements Serializable {
         aces = 0;
     }
 
-    public ArrayList<Card> getCards() { return cards; }
+    public ArrayList<Card> getCards() {
+        return cards;
+    }
 
     public SimpleIntegerProperty valueProperty() {
         return value;
+    }
+
+    public Hand copy() {
+        Hand newbie = new Hand(this.cards);
+        newbie.value = this.value;
+        newbie.aces = this.aces;
+        return newbie;
     }
 }
 
@@ -54,12 +61,12 @@ class WriteableIntegerProperty extends SimpleIntegerProperty implements Serializ
         super(i);
     }
 
-    private void writeObject (ObjectOutputStream s) throws IOException, IOException {
+    private void writeObject(ObjectOutputStream s) throws IOException, IOException {
         s.defaultWriteObject();
         s.writeObject(get());
     }
 
-    private void readObject (ObjectInputStream s) throws IOException, ClassNotFoundException {
+    private void readObject(ObjectInputStream s) throws IOException, ClassNotFoundException {
         s.defaultReadObject();
         set((int) s.readObject());
     }

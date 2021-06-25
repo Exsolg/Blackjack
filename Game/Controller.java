@@ -1,8 +1,9 @@
 package Game;
 
+import Client.Client;
 import Engine.*;
+import NetworkTools.Message;
 import javafx.application.Platform;
-import javafx.beans.property.SimpleBooleanProperty;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -14,169 +15,211 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
 import javafx.scene.text.Text;
 
 import java.io.IOException;
-import java.util.ArrayList;
 
 public class Controller {
-    private final Deck deck = new Deck();
     private final Text message = new Text();
-    private final SimpleBooleanProperty playable = new SimpleBooleanProperty(false);
-    private static Hand dealer;
+    private Hand dealer;
     private static Player player;
     private static Client client;
     private static String nickname;
-    private static String connectionip;
+    private static String connectionIp;
 
     @FXML
     Button start;
+
     @FXML
     Button hit;
+
     @FXML
     Button stay;
+
     @FXML
-    Label nick1;
+    Label dealerScore;
+
     @FXML
-    Label nick2;
+    Label playerScore;
+
     @FXML
-    Label score1;
+    Canvas dealerCanvas;
+
     @FXML
-    Label score2;
+    Canvas playerCanvas;
+
     @FXML
-    Canvas dealercan;
-    @FXML
-    Canvas playercan;
-    @FXML
-    ImageView background = new ImageView(new Image(getClass().getResourceAsStream("../Images/background.png")));
-    @FXML
-    Text winmessage;
+    Text winMessage;
+
     @FXML
     TextField ip;
+
     @FXML
     TextField nick;
+
     @FXML
     Button connect;
 
     @FXML
     private void setScene(ActionEvent event) throws Exception {
         nickname = nick.getText();
-        connectionip = ip.getText();
-        Scene Scene = connect.getScene();
-        Parent Root = FXMLLoader.load(getClass().getResource("View.fxml"));
-        Scene.setRoot(Root);
+        connectionIp = ip.getText();
+        Scene scene = connect.getScene();
+        Parent root = FXMLLoader.load(getClass().getResource("../View/Game.fxml"));
+        scene.setRoot(root);
 
         player = new Player(nickname);
-        client = new Client(player, connectionip, 1111);
+        client = new Client(player, connectionIp, 25535);
+
+        if (client.getMessage() == null) {
+            scene.setRoot(FXMLLoader.load(getClass().getResource("../View/Menu.fxml")));
+        } else if (client.getMessage().getMsg().equals("disconnect")) {
+            client.closeConnection();
+            scene.setRoot(FXMLLoader.load(getClass().getResource("../View/Menu.fxml")));
+        }
     }
 
     @FXML
-    public void start_game(){
+    public void stayListener() {
+        stay.setDisable(true);
+        hit.setDisable(true);
+        start.setDisable(true);
+
+        player.setReady(true);
+
         new Thread(() -> {
             try {
-                dealer = (Hand) client.ReadObject();
+                client.WriteMsg(new Message("stay", player));
+                Message msg = (Message) client.ReadObject();
+
+                while (msg.getMsg().equals("not")) {
+                    client.WriteMsg(new Message("stay", player));
+                    msg = (Message) client.ReadObject();
+                }
+
+                player = (Player) msg.getObj();
+                dealer = (Hand) msg.getObj2();
+
+                if (msg.getMsg().equals("stay")) {
+                    addCard(dealerCanvas.getGraphicsContext2D(), dealer);
+                    Platform.runLater(() -> {
+                        dealerScore.setText("Current score: " + dealer.valueProperty().get());
+                    });
+                    endGame();
+                }
             } catch (IOException | ClassNotFoundException e) {
-                System.out.println(e.getMessage());
+                System.out.println(e.getMessage() + " error");
             }
-
-            startNewGame();
-
-            player.getHand().valueProperty().addListener((obs, old, newValue) -> {
-                if (newValue.intValue() >= 21) {
-                    endGame();
-                }
-            });
-
-            dealer.valueProperty().addListener((obs, old, newValue) -> {
-                if (newValue.intValue() >= 21) {
-                    endGame();
-                }
-            });
-
-            start.setOnAction(event -> startNewGame());
-
-            hit.setOnAction(event -> {
-                player.getHand().takeCard(deck.drawCard());
-
-                int x = 77 * (player.getHand().getCards().size() - 1);
-                addCard(playercan.getGraphicsContext2D(), player.getHand(), x, 0, 75, 105);
-
-                score2.setText("Current score: " + player.getHand().valueProperty().get());
-            });
-
-            stay.setOnAction(event -> {
-
-                while (dealer.valueProperty().get() < 17) {
-                    dealer.takeCard(deck.drawCard());
-
-                    int x = 77 * (dealer.getCards().size() - 1);
-                    addCard(dealercan.getGraphicsContext2D(), dealer, x, 0, 75, 105);
-
-                    score1.setText("Current score: " + dealer.valueProperty().get());
-                }
-
-                endGame();
-            });
         }).start();
     }
 
+    @FXML
+    public void hitListener() {
+        new Thread(() -> {
+            try {
+                client.WriteMsg(new Message("hit", player));
+                Message msg = (Message) client.ReadObject();
+
+                player = (Player) msg.getObj();
+
+                if (msg.getMsg().equals("hit")) {
+
+                    Platform.runLater(() -> {
+                        addCard(playerCanvas.getGraphicsContext2D(), player.getHand());
+                        playerScore.setText("Current score: " + player.getHand().valueProperty().get());
+                    });
+
+                    if (player.getHand().valueProperty().get() >= 21) {
+                        Platform.runLater(() -> {
+                            stayListener();
+                        });
+                    }
+                }
+
+            } catch (IOException | ClassNotFoundException e) {
+                System.out.println(e.getMessage() + " error");
+            }
+        }).start();
+    }
+
+    @FXML
     private void startNewGame() {
         start.setDisable(true);
-        hit.setDisable(false);
-        stay.setDisable(false);
+        hit.setDisable(true);
+        stay.setDisable(true);
 
-        winmessage.setText("");
-        playercan.getGraphicsContext2D().clearRect(0, 0, playercan.getWidth(), playercan.getHeight());
-        dealercan.getGraphicsContext2D().clearRect(0, 0, dealercan.getWidth(), dealercan.getHeight());
-        playable.set(true);
-        message.setText("");
+        player.setReady(false);
 
-        deck.refill();
+        new Thread(() -> {
+            try {
+                client.WriteMsg(new Message("start", player));
+                Message msg = (Message) client.ReadObject();
 
-        dealer.reset();
-        player.getHand().reset();
+                while (msg.getMsg().equals("not")) {
+                    client.WriteMsg(new Message("start", player));
+                    msg = (Message) client.ReadObject();
+                }
 
-        dealer.takeCard(deck.drawCard());
-        addCard(dealercan.getGraphicsContext2D(), dealer, 0, 0, 75, 105);
-        dealer.takeCard(deck.drawCard());
-        addCard(dealercan.getGraphicsContext2D(), dealer, 77, 0, 75, 105);
-        score1.setText("Current score: " + dealer.valueProperty().get());
+                player = (Player) msg.getObj();
+                dealer = (Hand) msg.getObj2();
 
-        player.getHand().takeCard(deck.drawCard());
-        addCard(playercan.getGraphicsContext2D(), player.getHand(), 0, 0, 75, 105);
-        player.getHand().takeCard(deck.drawCard());
-        addCard(playercan.getGraphicsContext2D(), player.getHand(), 77, 0, 75, 105);
-        score2.setText("Current score: " + player.getHand().valueProperty().get());
+                if (msg.getMsg().equals("start")) {
+                    Platform.runLater(() -> {
+                        start.setDisable(true);
+                        hit.setDisable(false);
+                        stay.setDisable(false);
+
+                        winMessage.setText("");
+                        playerCanvas.getGraphicsContext2D().clearRect(0, 0, playerCanvas.getWidth(), playerCanvas.getHeight());
+                        dealerCanvas.getGraphicsContext2D().clearRect(0, 0, dealerCanvas.getWidth(), dealerCanvas.getHeight());
+                        message.setText("");
+
+                        addCard(playerCanvas.getGraphicsContext2D(), player.getHand());
+                        addCard(dealerCanvas.getGraphicsContext2D(), dealer);
+                        addShirt(dealerCanvas.getGraphicsContext2D());
+
+                        dealerScore.setText("Current score: " + (dealer.valueProperty().get() - dealer.getCards().get(0).value));
+                        playerScore.setText("Current score: " + player.getHand().valueProperty().get());
+                    });
+                }
+            } catch (IOException | ClassNotFoundException e) {
+                System.out.println(e.getMessage() + " error");
+            }
+        }).start();
     }
 
     private void endGame() {
-        playable.set(false);
         start.setDisable(false);
         hit.setDisable(true);
         stay.setDisable(true);
 
         int dealerValue = dealer.valueProperty().get();
         int playerValue = player.getHand().valueProperty().get();
-        String winner = "Exceptional case: d: " + dealerValue + " p: " + playerValue;
 
         if (dealerValue == 21 || playerValue > 21 || dealerValue == playerValue
                 || (dealerValue < 21 && dealerValue > playerValue)) {
-            winner = "PLAYER1";
-        }
-        else if (playerValue == 21 || dealerValue > 21 || playerValue > dealerValue) {
-            winner = "PLAYER2";
+            winMessage.setText("DEALER WIN");
+        } else if (playerValue == 21 || dealerValue > 21 || playerValue > dealerValue) {
+            winMessage.setText("CONGRATULATE");
         }
 
-        winmessage.setText(winner + " WON");
     }
 
-    private void addCard(GraphicsContext gc, Hand hand, int v, int v1, int v2, int v3) {
-        Image bgImage = null;
+    private void addCard(GraphicsContext gc, Hand hand) {
+        Image bgImage;
         gc.getTransform().appendScale(10, 30);
-        if (hand.getCards().size() != 0) {
-            bgImage = new Image(getClass().getResourceAsStream("../Images/" + hand.getCards().get(hand.getCards().size() - 1).suit.getSuit() + hand.getCards().get(hand.getCards().size() - 1).rank.getRank() + ".png"));
+        int x = 0;
+        for (Card card : hand.getCards()) {
+            bgImage = new Image(getClass().getResourceAsStream("../Images/" + card.suit.getSuit() + card.rank.getRank() + ".png"));
+            gc.drawImage(bgImage, x, 0, 75, 105);
+            x += 77;
         }
-        gc.drawImage(bgImage, v, v1, v2, v3);
+    }
+
+    private void addShirt(GraphicsContext gc) {
+        Image bgImage;
+        gc.getTransform().appendScale(10, 30);
+        bgImage = new Image(getClass().getResourceAsStream("../Images/shirt.png"));
+        gc.drawImage(bgImage, 0, 0, 75, 105);
     }
 }
